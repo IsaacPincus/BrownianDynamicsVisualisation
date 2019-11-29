@@ -156,7 +156,6 @@ for bead in range(1,N_beads):
         links = np.random.normal(0,1,3)
     R[bead,:] = R[bead-1,:] + links
     
-
 set_to_center_of_mass(R)
 
 Q = return_connector_vectors(R)
@@ -176,7 +175,7 @@ for bead in range(N_beads):
         rods.append(cylinder(pos=R_vectors[bead], axis=Q_vectors[bead], radius=0.1))
 
 while True:
-    rate(20)
+    rate(100)
     #R = step_Euler(R)
 
     if running:
@@ -194,8 +193,4 @@ while True:
             if bead != N_beads-1:
                 rods[bead].pos = R_vectors[bead]
                 rods[bead].axis = Q_vectors[bead]
-
-
-
-
 
