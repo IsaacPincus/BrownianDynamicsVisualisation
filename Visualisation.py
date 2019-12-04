@@ -1,5 +1,7 @@
 from vpython import *
 import numpy as np
+import Constants as c
+from Beads import *
 
 scene.caption= """ A bead-FENE-spring-chain integrated using Brownian dynamics
 The red arrow demonstrates the direction of shear flow
@@ -10,28 +12,13 @@ To zoom, drag with middle button or Alt/Option depressed, or use scroll wheel.
 To pan left/right and up/down, Shift-drag.
 Touch screen: pinch/extend to zoom, swipe or two-finger rotate. \n \n"""
 
-
-def set_to_center_of_mass(R):
-    r_center_of_mass = np.mean(R, axis=0)
-    for bead in range(N_beads):
-        R[bead,:] = R[bead,:] - r_center_of_mass
-
-def return_connector_vectors(R):
-    return R[1:] - R[0:-1]
-
-def return_bead_vectors(Q):
-    R = np.zeros((N_beads, 3))
-    for bead in range(1,N_beads):
-        R[bead,:] = R[bead-1,:] + Q[bead-1]
-    return R
-
 def get_force_vectors(R):
-    Fc = return_connector_vectors(R)
-    F = np.zeros((N_beads, 3))
-    for bead in range(N_beads):
+    Fc = get_links(R)
+    F = np.zeros((c.BEAD_COUNT, 3))
+    for bead in range(c.BEAD_COUNT):
         if bead==0:
             F[bead,:] = Fc[bead,:]
-        elif bead==N_beads-1:
+        elif bead==c.BEAD_COUNT-1:
             F[bead,:] = -Fc[bead-1,:]
         else:
             F[bead,:] = Fc[bead,:] - Fc[bead-1,:]
@@ -40,16 +27,16 @@ def get_force_vectors(R):
 def get_connector_force_vectors_FENE(Q):
     Ql = np.linalg.norm(Q, axis=1)
     Ql2 = np.square(Ql)
-    return np.transpose(np.multiply(np.transpose(Q),1/(1-Ql2/b)))
+    return np.transpose(np.multiply(np.transpose(Q),1/(1-Ql2/c.B)))
 
 def get_force_vectors_FENE(R):
     #Qs = return_connector_vectors(R)
     Fc = get_connector_force_vectors_FENE(Q)
-    F = np.zeros((N_beads, 3))
-    for bead in range(N_beads):
+    F = np.zeros((c.BEAD_COUNT, 3))
+    for bead in range(c.BEAD_COUNT):
         if bead==0:
             F[bead,:] = Fc[bead,:]
-        elif bead==N_beads-1:
+        elif bead==c.BEAD_COUNT-1:
             F[bead,:] = -Fc[bead-1,:]
         else:
             F[bead,:] = Fc[bead,:] - Fc[bead-1,:]
@@ -59,18 +46,18 @@ def get_force_vectors_FENE(R):
 def step_Euler(R):
     #Very simple Euler integration of R    
     F = get_force_vectors(R)
-    dW = np.random.normal(0,dt**0.5,(N_beads,3))
+    dW = np.random.normal(0,dt**0.5,(c.BEAD_COUNT,3))
     flow_term = np.transpose(np.dot(k,np.transpose(R)))
     R = R + (flow_term + 0.25*F) * dt + 2**(-0.5)*dW
-    set_to_center_of_mass(R)
+    move_center_of_mass_to_origin(R)
     return R
 
 def step_FENE_semi_implicit(R, k, b, dt):
     # Semi implicit predictor-corrector integration of
     # a FENE spring
     #F = get_force_vectors_FENE(R)
-    Q = return_connector_vectors(R)
-    dW = np.random.normal(0,dt**0.5,(N_beads-1,3))
+    Q = get_links(R)
+    dW = np.random.normal(0,dt**0.5,(c.BEAD_COUNT-1,3))
     Fc = get_connector_force_vectors_FENE(Q)
     flow_term = np.transpose(np.dot(k,np.transpose(Q)))
     # predicted change in R
@@ -82,7 +69,7 @@ def step_FENE_semi_implicit(R, k, b, dt):
     #R_pred_old = R_pred
     # Corrector steps
     epsilon = 20
-    while epsilon > tol:
+    while epsilon > c.TOL:
         flow_term_pred = np.transpose(np.dot(k,np.transpose(Q_pred)))
         for i in range(len(Q)):
             gamma = Q[i,:] + (0.5*(flow_term[i,:] + flow_term_pred[i,:]) + \
@@ -103,16 +90,9 @@ def step_FENE_semi_implicit(R, k, b, dt):
                 next_forces[i,:] = Q_corr[i,:]*(1/(1-Ql2/b))
         epsilon = np.sum((Q_pred-Q_corr)**2)
         Q_pred = np.copy(Q_corr)
-    R = return_bead_vectors(Q_corr)
-    set_to_center_of_mass(R)
+    move_beads_using_links(R, Q_corr)
+    move_center_of_mass_to_origin(R)
     return R
-
-
-## INPUTS!! Don't make N_beads >100 or so unless you really wanna see those frames tick past
-b = 50
-N_beads = 10
-dt = 0.05
-tol = 0.0001
 
 ## widgets etc
 running = True
@@ -146,32 +126,25 @@ k = np.array([[0, gamma_dot, 0], [0, 0, 0], [0, 0, 0]])
 shear_flow_pointer = arrow(pos=vector(0,0,0), axis = vector(5, 0, 0), \
                            shaftwidth = 0.3, color = color.red)
 
-# bead vectors
+# set up bead vectors
 
-R = np.zeros((N_beads, 3))
+R = make_random_beads(c.BEAD_COUNT, np.sqrt(c.B))
+move_center_of_mass_to_origin(R)
 
-for bead in range(1,N_beads):
-    links = np.random.normal(0,1,3)
-    while ((b != 0) & (np.linalg.norm(links) > np.sqrt(b))):
-        links = np.random.normal(0,1,3)
-    R[bead,:] = R[bead-1,:] + links
-    
-set_to_center_of_mass(R)
-
-Q = return_connector_vectors(R)
+Q = get_links(R)
 
 Q_vectors = []
 R_vectors = []
 beads = []
 rods = []
 
-for connector in range(N_beads-1):
+for connector in range(c.BEAD_COUNT-1):
     Q_vectors.append(vector(Q[connector,0],Q[connector,1],Q[connector,2]))
 
-for bead in range(N_beads):
+for bead in range(c.BEAD_COUNT):
     R_vectors.append(vector(R[bead,0],R[bead,1],R[bead,2]))
     beads.append(sphere(pos=R_vectors[bead], radius=0.5))
-    if bead != N_beads-1:
+    if bead != c.BEAD_COUNT-1:
         rods.append(cylinder(pos=R_vectors[bead], axis=Q_vectors[bead], radius=0.1))
 
 while True:
@@ -181,16 +154,16 @@ while True:
     if running:
         gamma_dot = shear_slider.value
         k = np.array([[0, gamma_dot, 0], [0, 0, 0], [0, 0, 0]])
-        R = step_FENE_semi_implicit(R, k, b, sl.value)
-        Q = return_connector_vectors(R)
+        R = step_FENE_semi_implicit(R, k, c.B, sl.value)
+        Q = get_links(R)
         
-        for connector in range(N_beads-1):
+        for connector in range(c.BEAD_COUNT-1):
             Q_vectors[connector] = vector(Q[connector,0],Q[connector,1],Q[connector,2])
 
-        for bead in range(N_beads):
+        for bead in range(c.BEAD_COUNT):
             R_vectors[bead] = vector(R[bead,0],R[bead,1],R[bead,2])
             beads[bead].pos = R_vectors[bead]
-            if bead != N_beads-1:
+            if bead != c.BEAD_COUNT-1:
                 rods[bead].pos = R_vectors[bead]
                 rods[bead].axis = Q_vectors[bead]
 
