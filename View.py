@@ -62,12 +62,8 @@ shear_flow_pointer = arrow(pos=vector(0,0,0), axis = vector(5, 0, 0), shaftwidth
 spheres = []
 rods = []
 
-## set update rate
-
-rate(100)
-
 def get_vector(array, i):
-    """Get the vpython vectors associated with a given element in an array"""
+    """Get the vpython vector associated with a given element in an array"""
     return vector(array[i, 0], array[i, 1], array[i, 2])
 
 def create_elements(beads, links):
@@ -83,10 +79,9 @@ def update_elements(beads, links):
     assert len(beads) == len(links) + 1
     assert len(beads) == len(spheres)
     assert len(links) == len(rods)
+    rate(100)
     for i in range(len(beads)):
         spheres[i].pos = get_vector(beads, i)
     for i in range(len(links)):
         rods[i].pos = get_vector(beads, i)
         rods[i].axis = get_vector(links, i)
-
-
