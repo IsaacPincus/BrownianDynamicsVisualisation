@@ -7,4 +7,5 @@ pip install numpy
 ```
 
 To run, simply use
-```python Visualisation.py```
+```python Visualisation.py
+```
